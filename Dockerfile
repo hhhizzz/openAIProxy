@@ -8,7 +8,7 @@ WORKDIR /app
 COPY . /app
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir flask requests openai opentelemetry-instrumentation-flask waitress
+RUN pip install --no-cache-dir flask requests openai opentelemetry-instrumentation-flask
 
 # Make port 80 available to the world outside this container
 EXPOSE 8080
@@ -16,4 +16,5 @@ EXPOSE 8080
 # Define environment variable
 ENV NAME World
 
-CMD [ "waitress-serve", "--call", "app:app"]
+# Run main.py when the container launches
+CMD [ "python3", "-m" , "flask", "run", "--port=8080"]
