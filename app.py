@@ -4,7 +4,11 @@ from flask import Flask, request, Response, jsonify
 import requests
 import json
 
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
+
 app = Flask(__name__)
+
+FlaskInstrumentor().instrument_app(app)
 
 default_resource = "default_resource"
 
@@ -138,4 +142,4 @@ if __name__ == '__main__':
         raise ValueError("MODEL_MAPPER and RESOURCE_MAPPER environment variables must be set")
     if os.getenv('KEYS_MAPPER') is None:
         raise ValueError("KEYS_MAPPER environment variable must be set")
-    app.run(host='0.0.0.0', port=80, debug=True)
+    app.run(host='0.0.0.0', port=80, debug=False)
