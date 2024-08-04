@@ -142,4 +142,4 @@ if __name__ == '__main__':
         raise ValueError("MODEL_MAPPER and RESOURCE_MAPPER environment variables must be set")
     if os.getenv('KEYS_MAPPER') is None:
         raise ValueError("KEYS_MAPPER environment variable must be set")
-    app.run(host='0.0.0.0', port=8080, debug=True)
+    app.run(host='0.0.0.0', port=8000, debug=True)
