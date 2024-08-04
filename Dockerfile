@@ -11,10 +11,10 @@ COPY . /app
 RUN pip install --no-cache-dir flask requests openai opentelemetry-instrumentation-flask
 
 # Make port 80 available to the world outside this container
-EXPOSE 80
+EXPOSE 8081
 
 # Define environment variable
 ENV NAME World
 
 # Run main.py when the container launches
-CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0", "--port 80"]
+CMD [ "python3", "-m" , "flask", "run", "--host=0.0.0.0"]
