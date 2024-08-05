@@ -1,6 +1,7 @@
 import os
 
 from flask import Flask, request, Response, jsonify
+from flask_cors import CORS
 import requests
 import json
 
@@ -9,6 +10,8 @@ from opentelemetry.instrumentation.flask import FlaskInstrumentor
 app = Flask(__name__)
 
 FlaskInstrumentor().instrument_app(app)
+
+CORS(app)
 
 default_resource = "default_resource"
 
@@ -82,7 +85,8 @@ def handler(path):
         return 'Not Found', 404
 
     resource = resource_mapper[deployment]
-    request_url = f"https://{resource}.openai.azure.com/openai/deployments/{deployment}/{path}?api-version={api_version}"
+    request_url = f"https://{resource}.openai.azure.com/openai/deployments/{
+        deployment}/{path}?api-version={api_version}"
 
     headers = {'api-key': resource_keys[resource]}
     for key, value in request.headers.items():
@@ -139,7 +143,8 @@ def get_models():
 
 if __name__ == '__main__':
     if os.getenv('MODEL_MAPPER') is None or os.getenv('RESOURCE_MAPPER') is None:
-        raise ValueError("MODEL_MAPPER and RESOURCE_MAPPER environment variables must be set")
+        raise ValueError(
+            "MODEL_MAPPER and RESOURCE_MAPPER environment variables must be set")
     if os.getenv('KEYS_MAPPER') is None:
         raise ValueError("KEYS_MAPPER environment variable must be set")
     app.run(host='0.0.0.0', port=8000, debug=True)
