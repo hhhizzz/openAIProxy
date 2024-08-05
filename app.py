@@ -7,11 +7,30 @@ import json
 
 
 from flask_httpauth import HTTPTokenAuth
+
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
+from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
+
 
 app = Flask(__name__)
 
-FlaskInstrumentor().instrument_app(app)
+if os.getenv('APPLICATIONINSIGHTS_CONNECTION_STRING'):
+    tracer_provider = TracerProvider()
+    trace.set_tracer_provider(tracer_provider)
+    tracer = trace.get_tracer(__name__)
+    # Configure Azure Monitor exporter
+    # Replace 'your-connection-string-here' with your actual Azure Monitor Connection String
+    azure_exporter = AzureMonitorTraceExporter(
+        connection_string=os.environ["APPLICATIONINSIGHTS_CONNECTION_STRING"]
+    )
+    # Add the exporter to the tracer provider
+    span_processor = BatchSpanProcessor(azure_exporter)
+    trace.get_tracer_provider().add_span_processor(span_processor)
+
+    FlaskInstrumentor().instrument_app(app)
 
 CORS(app)
 
@@ -47,59 +66,66 @@ def unauthorized():
 @app.route('/<path:path>', methods=['OPTIONS', 'POST'])
 @auth.login_required
 def handler(path):
-    if request.method == 'OPTIONS':
-        return '', 204
+    tracer = trace.get_tracer(__name__)
+    with tracer.start_as_current_span("completions"):
+        if request.method == 'OPTIONS':
+            return '', 204
 
-    if request.method != 'POST':
-        return 'Bad Request', 400
+        if request.method != 'POST':
+            return 'Bad Request', 400
 
-    body_bytes = request.get_data()
+        body_str = request.get_data()
 
-    deployment = "gpt-4o"
-    api_version = "2024-02-15-preview"
+        deployment = "gpt-4o"
+        api_version = "2024-02-15-preview"
 
-    if path.startswith("//"):
-        path = path[1:]
+        if path.startswith("//"):
+            path = path[1:]
 
-    try:
-        data = json.loads(body_bytes)
-    except json.JSONDecodeError:
-        return 'Bad Request', 400
+        try:
+            data = json.loads(body_str)
+        except json.JSONDecodeError:
+            return 'Bad Request', 400
 
-    if path == "v1/chat/completions":
-        if 'media' in data:
-            deployment = model_mapper[data['model']]
-            data['max_tokens'] = 4096
-            body_bytes = json.dumps(data)
-            api_version = "2023-12-01-preview"
+        if path == "v1/chat/completions":
+            if 'media' in data:
+                deployment = model_mapper[data['model']]
+                data['max_tokens'] = 4096
+                body_str = json.dumps(data)
+                api_version = "2023-12-01-preview"
+            else:
+                deployment = model_mapper[data['model']]
+            path = "chat/completions"
+
+        elif path == "v1/images/generations":
+            path = "images/generations"
+            deployment = "dall-e-3"
+
+        elif path == "v1/completions":
+            path = "completions"
+
+        elif path == "v1/models":
+            return '', 204
+
+        elif path == "v1/audio/speech":
+            path = "audio/speech"
+            deployment = "tts"
+
+        elif path == "v1/audio/transcriptions":
+            path = "audio/transcriptions"
+            deployment = "whisper"
+
         else:
-            deployment = model_mapper[data['model']]
-        path = "chat/completions"
+            return 'Not Found', 404
 
-    elif path == "v1/images/generations":
-        path = "images/generations"
-        deployment = "dall-e-3"
+        if deployment not in resource_mapper:
+            return 'Not Found', 404
 
-    elif path == "v1/completions":
-        path = "completions"
+        with tracer.start_as_current_span("request_to_openai"):
+            return request_to_openai(body_str, deployment, path, api_version)
 
-    elif path == "v1/models":
-        return '', 204
 
-    elif path == "v1/audio/speech":
-        path = "audio/speech"
-        deployment = "tts"
-
-    elif path == "v1/audio/transcriptions":
-        path = "audio/transcriptions"
-        deployment = "whisper"
-
-    else:
-        return 'Not Found', 404
-
-    if deployment not in resource_mapper:
-        return 'Not Found', 404
-
+def request_to_openai(data, deployment, path, api_version):
     resource = resource_mapper[deployment]
     request_url = f"https://{resource}.openai.azure.com/openai/deployments/{
         deployment}/{path}?api-version={api_version}"
@@ -111,10 +137,10 @@ def handler(path):
 
     # Stream the request to the target URL
     req = requests.request(
-        method=request.method,
+        method="POST",
         url=request_url,
         headers=headers,
-        data=body_bytes,
+        data=data,
         allow_redirects=False,
         stream=True
     )
@@ -130,29 +156,19 @@ def handler(path):
 @app.route('/v1/models', methods=['GET'])
 @auth.login_required
 def get_models():
-    # Example data
+    # get values from model mapper and put to the response
+    data = []
+    for _, value in model_mapper.items():
+        data.append({
+            "id": value,
+            "object": "model",
+            "created": 1686935002,
+            "owned_by": "openai"
+        })
+
     response = {
         "object": "list",
-        "data": [
-            {
-                "id": "model-id-0",
-                "object": "model",
-                "created": 1686935002,
-                "owned_by": "organization-owner"
-            },
-            {
-                "id": "model-id-1",
-                "object": "model",
-                "created": 1686935002,
-                "owned_by": "organization-owner",
-            },
-            {
-                "id": "model-id-2",
-                "object": "model",
-                "created": 1686935002,
-                "owned_by": "openai"
-            },
-        ],
+        "data": data
     }
 
     return jsonify(response)
