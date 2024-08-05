@@ -121,7 +121,7 @@ def handler(path):
         if deployment not in resource_mapper:
             return 'Not Found', 404
 
-        with tracer.start_as_current_span("request_to_openai"):
+        with tracer.start_as_current_span("request_to_openai_"+deployment):
             return request_to_openai(body_str, deployment, path, api_version)
 
 
