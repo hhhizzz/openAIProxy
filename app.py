@@ -5,6 +5,8 @@ from flask_cors import CORS
 import requests
 import json
 
+
+from flask_httpauth import HTTPTokenAuth
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
 app = Flask(__name__)
@@ -13,7 +15,12 @@ FlaskInstrumentor().instrument_app(app)
 
 CORS(app)
 
-default_resource = "default_resource"
+auth = HTTPTokenAuth(scheme='Bearer')
+
+# format: ["token1","token2"]
+# load list to json
+authorization = json.loads(os.getenv('AUTHORIZATION'))
+tokens = {token for token in authorization}
 
 #  format of the resource_mapper is {"deployment name": "openai resource name"}, e.g. {"gpt-4": "azureopenai1"}
 resource_mapper = json.loads(os.getenv('RESOURCE_MAPPER'))
@@ -25,7 +32,20 @@ model_mapper = json.loads(os.getenv('MODEL_MAPPER'))
 resource_keys = json.loads(os.getenv('KEYS_MAPPER'))
 
 
+@auth.verify_token
+def verify_token(token):
+    if token in tokens:
+        return "openAIUser"
+    return None
+
+
+@auth.error_handler
+def unauthorized():
+    return jsonify({'error': 'Unauthorized access'}), 401
+
+
 @app.route('/<path:path>', methods=['OPTIONS', 'POST'])
+@auth.login_required
 def handler(path):
     if request.method == 'OPTIONS':
         return '', 204
@@ -34,12 +54,8 @@ def handler(path):
         return 'Bad Request', 400
 
     body_bytes = request.get_data()
-    auth = request.headers.get('Authorization')
 
-    if "IloveJXY" not in auth:
-        return 'Unauthorized', 401
-
-    deployment = "gpt-4"
+    deployment = "gpt-4o"
     api_version = "2024-02-15-preview"
 
     if path.startswith("//"):
@@ -90,7 +106,7 @@ def handler(path):
 
     headers = {'api-key': resource_keys[resource]}
     for key, value in request.headers.items():
-        if key.lower() != 'authorization' and key.lower() != 'host':
+        if key.lower() != 'authorization' and key.lower() != 'host' and key.lower() != "api-key":
             headers[key] = value
 
     # Stream the request to the target URL
@@ -112,6 +128,7 @@ def handler(path):
 
 
 @app.route('/v1/models', methods=['GET'])
+@auth.login_required
 def get_models():
     # Example data
     response = {
@@ -142,9 +159,4 @@ def get_models():
 
 
 if __name__ == '__main__':
-    if os.getenv('MODEL_MAPPER') is None or os.getenv('RESOURCE_MAPPER') is None:
-        raise ValueError(
-            "MODEL_MAPPER and RESOURCE_MAPPER environment variables must be set")
-    if os.getenv('KEYS_MAPPER') is None:
-        raise ValueError("KEYS_MAPPER environment variable must be set")
     app.run(host='0.0.0.0', port=8000, debug=True)

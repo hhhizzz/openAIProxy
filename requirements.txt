@@ -4,3 +4,4 @@ requests
 openai
 opentelemetry-instrumentation-flask
 gunicorn
+Flask-HTTPAuth
