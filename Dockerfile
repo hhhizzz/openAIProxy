@@ -16,5 +16,5 @@ EXPOSE 8000
 # Define environment variable
 ENV NAME World
 
-# Run main.py when the container launches
-CMD [ "gunicorn","--bind", "0.0.0.0:8000", "app:app"]
+# Run main.py when the container launches with 4 workers
+CMD [ "gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "app:app"]
