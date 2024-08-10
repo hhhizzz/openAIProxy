@@ -86,6 +86,9 @@ def handler(path):
             data = json.loads(body_str)
         except json.JSONDecodeError:
             return 'Bad Request', 400
+        except Exception as e:
+            # do nothing for the binary input such as audio
+            pass
 
         if path == "v1/chat/completions":
             if 'media' in data:
