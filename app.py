@@ -77,7 +77,7 @@ def handler(path):
         body_str = request.get_data()
 
         deployment = "gpt-4o"
-        api_version = "2024-02-15-preview"
+        api_version = "2024-08-01-preview"
 
         if path.startswith("//"):
             path = path[1:]
