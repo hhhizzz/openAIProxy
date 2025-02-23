@@ -1,4 +1,5 @@
 import os
+from dotenv import load_dotenv
 
 from flask import Flask, request, Response, jsonify
 from flask_cors import CORS
@@ -14,6 +15,7 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 from azure.monitor.opentelemetry.exporter import AzureMonitorTraceExporter
 
+load_dotenv(".env.dev")
 
 app = Flask(__name__)
 
@@ -77,7 +79,7 @@ def handler(path):
         body_str = request.get_data()
 
         deployment = "gpt-4o"
-        api_version = "2024-08-01-preview"
+        api_version = "2025-01-01-preview"
 
         if path.startswith("//"):
             path = path[1:]
@@ -95,7 +97,7 @@ def handler(path):
                 deployment = model_mapper[data['model']]
                 data['max_tokens'] = 4096
                 body_str = json.dumps(data)
-                api_version = "2023-12-01-preview"
+                api_version = "2025-01-01-preview"
             else:
                 deployment = model_mapper[data['model']]
             path = "chat/completions"
@@ -137,6 +139,11 @@ def request_to_openai(data, deployment, path, api_version):
     for key, value in request.headers.items():
         if key.lower() != 'authorization' and key.lower() != 'host' and key.lower() != "api-key":
             headers[key] = value
+    
+    if deployment in ["o1", "o3-mini"]:
+        data = json.loads(data)
+        data["reasoning_effort"] = "high"
+        data = json.dumps(data)
 
     # Stream the request to the target URL
     req = requests.request(
@@ -147,6 +154,10 @@ def request_to_openai(data, deployment, path, api_version):
         allow_redirects=False,
         stream=True
     )
+
+    # If the upstream response is not 200, return the error directly.
+    if req.status_code != 200:
+        return Response(req.content, status=req.status_code, headers=dict(req.headers))
 
     # Stream the response back to the client
     def generate():
