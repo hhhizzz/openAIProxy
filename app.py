@@ -5,6 +5,7 @@ from flask import Flask, request, Response, jsonify
 from flask_cors import CORS
 import requests
 import json
+import random
 
 
 from flask_httpauth import HTTPTokenAuth
@@ -131,7 +132,16 @@ def handler(path):
 
 
 def request_to_openai(data, deployment, path, api_version):
-    resource = resource_mapper[deployment]
+    resource_value = resource_mapper[deployment]
+    
+    # Check if resource_value is a list (multiple resources)
+    if isinstance(resource_value, list):
+        # Randomly select one resource from the list
+        resource = random.choice(resource_value)
+    else:
+        # Use the single resource as before
+        resource = resource_value
+        
     request_url = f"https://{resource}.openai.azure.com/openai/deployments/{
         deployment}/{path}?api-version={api_version}"
 
